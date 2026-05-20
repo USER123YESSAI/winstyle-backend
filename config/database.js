@@ -42,11 +42,14 @@ if (dialect === 'sqlite') {
                 ? {
                     dialectOptions: {
                         ssl: {
-                            // Compatible TiDB Cloud / providers qui exigent SSL.
-                            // rejectUnauthorized=false évite l’échec si le CA n’est pas fourni.
+                            // TiDB Cloud exige TLS. rejectUnauthorized peut être à false
+                            // si le CA n’est pas fourni côté serveur.
                             rejectUnauthorized: false,
                         },
                     },
+                    // Sequelize/mysql2 peut sinon tenter une connexion non chiffrée.
+                    // Force l’usage de SSL quand demandé.
+                    ssl: true,
                 }
                 : {}),
         }

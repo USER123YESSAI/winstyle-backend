@@ -1,0 +1,44 @@
+{
+  "name": "wins-agency-backend",
+  "version": "1.0.0",
+  "description": "API REST Win's Agency - Agence événementielle Dakar",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "seed": "node seed.js",
+    "test": "cross-env NODE_ENV=test node --test tests/app.test.js"
+  },
+  "keywords": [
+    "express",
+    "dotenv",
+    "mysql2",
+    "sequelize",
+    "jsonwebtoken",
+    "bcrypt",
+    "joi",
+    "multer",
+    "nodemon"
+  ],
+  "author": "wins-agency",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "mysql2": "^3.18.2",
+    "nodemon": "^3.1.14",
+    "sequelize": "^6.37.7"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "sqlite3": "^6.0.1",
+    "supertest": "^7.2.2"
+  }
+}

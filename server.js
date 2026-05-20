@@ -1,24 +1,46 @@
 import app from './app.js';
 import dotenv from 'dotenv';
 import { sequelize } from './models/index.js';
-
-// Charger le bon .env (pour éviter les cas où dotenv ne trouve pas le fichier)
 import { fileURLToPath } from 'url';
 import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Charger .env seulement si DB_SYNC=false
-// (si DB_SYNC=true, on se base surtout sur config/database.js qui charge .env.local en priorité)
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-
-
-// Synchro SQL: pilotée par l'environnement (évite les erreurs type ER_TABLESPACE_EXISTS quand DB_SYNC n'est pas activé)
-// Mettre DB_SYNC=true pour activer explicitement en dev.
 const shouldSync = process.env.DB_SYNC === 'true';
 
+// ── Création du superadmin au démarrage ──────────────────────────────────────
+async function createSuperAdmin() {
+  try {
+    // Importe dynamiquement pour éviter les problèmes de circular import
+    const { default: User } = await import('./models/User.js');
+    const bcrypt = await import('bcrypt');
+
+    const email    = process.env.SUPERADMIN_EMAIL    || 'admin@winstyle.com';
+    const password = process.env.SUPERADMIN_PASSWORD || 'Admin@@2025!';
+    const nom      = process.env.SUPERADMIN_NOM      || 'Super Admin';
+
+    const existing = await User.findOne({ where: { email } });
+    if (existing) {
+      console.log(`Superadmin déjà existant (${email}) — aucune action.`);
+      return;
+    }
+
+    const hash = await bcrypt.default.hash(password, 10);
+    await User.create({
+      nom,
+      email,
+      password: hash,
+      role: 'superadmin',
+    });
+    console.log(`✅ Superadmin créé : ${email}`);
+  } catch (err) {
+    console.error('Erreur création superadmin :', err?.message || err);
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 const startServer = () => {
   const port = process.env.PORT || 5000;
@@ -31,35 +53,27 @@ const startServer = () => {
   try {
     if (shouldSync) {
       console.log('DB_SYNC=true -> sequelize.sync');
-      // IMPORTANT: sync sur MySQL peut casser selon l'état/les dumps (ER_TABLESPACE_EXISTS).
-      // On tente une sync « non destructive ».
       try {
         await sequelize.sync({ alter: false, force: false });
         console.log('Base de données synchronisée (sequelize.sync).');
       } catch (e) {
-        // Sur MySQL, sequelize.sync peut échouer si un dump/IMPORT a déjà créé un tablespace.
-        // Dans ce cas, tenter alter/force peut encore échouer et bloquer le démarrage.
-        // On tolère l'erreur et on démarre l'API (les endpoints échoueront si schéma absent).
         if (e?.original?.code !== 'ER_TABLESPACE_EXISTS') {
           throw e;
         }
         console.warn('ER_TABLESPACE_EXISTS détecté : sequelize.sync ignoré (API démarrée).');
       }
-
     } else {
-
-    console.log("sequelize.sync désactivé au démarrage (met DB_SYNC=true pour l'activer). ");
-    // Note: en production/dev, on préfère gérer le schéma via migrations plutôt que sync automatique.
-
-    // Ne pas bloquer le démarrage si la DB n'est pas joignable.
-    // En cas d'indispo, l'API échouera sur les routes DB, mais le serveur reste up.
-    try {
-      await sequelize.authenticate();
-      console.log('Authentification base de données OK (sequelize.authenticate).');
-    } catch (e) {
-      console.error('DB indisponible (serveur démarré quand même) :', e?.message || e);
+      console.log("sequelize.sync désactivé au démarrage (met DB_SYNC=true pour l'activer).");
+      try {
+        await sequelize.authenticate();
+        console.log('Authentification base de données OK (sequelize.authenticate).');
+      } catch (e) {
+        console.error('DB indisponible (serveur démarré quand même) :', e?.message || e);
+      }
     }
-    }
+
+    // Créer le superadmin après que la DB soit prête
+    await createSuperAdmin();
 
     console.log('Connexion base de données OK (ou DB indisponible, serveur démarré).');
     startServer();
@@ -67,4 +81,3 @@ const startServer = () => {
     console.error('Erreur de connexion / synchronisation à la base de données :', err);
   }
 })();
-

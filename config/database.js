@@ -24,6 +24,11 @@ if (dialect === 'sqlite') {
         logging,
     });
 } else {
+    const dbSslEnabled = process.env.DB_SSL === 'true' || process.env.DB_SSL === '1';
+
+    // Si TiDB Cloud / provider impose SSL, activer avec DB_SSL=true sur Render.
+    // En dev, laisse DB_SSL=false (ou absent).
+
     sequelize = new Sequelize(
         process.env.DB_NAME,
         process.env.DB_USER || 'root',
@@ -33,6 +38,17 @@ if (dialect === 'sqlite') {
             port: process.env.DB_PORT || 3306,
             dialect,
             logging,
+            ...(dbSslEnabled
+                ? {
+                    dialectOptions: {
+                        ssl: {
+                            // Compatible TiDB Cloud / providers qui exigent SSL.
+                            // rejectUnauthorized=false évite l’échec si le CA n’est pas fourni.
+                            rejectUnauthorized: false,
+                        },
+                    },
+                }
+                : {}),
         }
     );
 }

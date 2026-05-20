@@ -1,5 +1,6 @@
 import app from './app.js';
 import dotenv from 'dotenv';
+import bcrypt from 'bcrypt';
 import { sequelize } from './models/index.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -14,9 +15,7 @@ const shouldSync = process.env.DB_SYNC === 'true';
 // ── Création du superadmin au démarrage ──────────────────────────────────────
 async function createSuperAdmin() {
   try {
-    // Importe dynamiquement pour éviter les problèmes de circular import
     const { default: User } = await import('./models/User.js');
-    const bcrypt = await import('bcrypt');
 
     const email    = process.env.SUPERADMIN_EMAIL    || 'admin@winstyle.com';
     const password = process.env.SUPERADMIN_PASSWORD || 'Admin@@2025!';
@@ -28,19 +27,14 @@ async function createSuperAdmin() {
       return;
     }
 
-    const hash = await bcrypt.default.hash(password, 10);
-    await User.create({
-      nom,
-      email,
-      password: hash,
-      role: 'superadmin',
-    });
+    const hash = await bcrypt.hash(password, 10);
+    await User.create({ nom, email, password: hash, role: 'superadmin' });
     console.log(`✅ Superadmin créé : ${email}`);
   } catch (err) {
     console.error('Erreur création superadmin :', err?.message || err);
   }
 }
-// ────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 const startServer = () => {
   const port = process.env.PORT || 5000;
@@ -57,9 +51,7 @@ const startServer = () => {
         await sequelize.sync({ alter: false, force: false });
         console.log('Base de données synchronisée (sequelize.sync).');
       } catch (e) {
-        if (e?.original?.code !== 'ER_TABLESPACE_EXISTS') {
-          throw e;
-        }
+        if (e?.original?.code !== 'ER_TABLESPACE_EXISTS') throw e;
         console.warn('ER_TABLESPACE_EXISTS détecté : sequelize.sync ignoré (API démarrée).');
       }
     } else {
@@ -72,7 +64,6 @@ const startServer = () => {
       }
     }
 
-    // Créer le superadmin après que la DB soit prête
     await createSuperAdmin();
 
     console.log('Connexion base de données OK (ou DB indisponible, serveur démarré).');

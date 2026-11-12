@@ -6,7 +6,7 @@ export const getAllFormations = async (req, res) => {
         const formations = await Formation.findAll({ order: [['date', 'ASC']] });
         return res.status(200).json(formations);
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
@@ -16,7 +16,7 @@ export const getFormationById = async (req, res) => {
         if (!formation) return res.status(404).json({ message: 'Formation introuvable' });
         return res.status(200).json(formation);
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 

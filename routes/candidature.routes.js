@@ -8,7 +8,7 @@ import {
 } from '../controllers/candidature.controller.js';
 import { authenticate } from '../middewares/authenticate.js';
 import { validateData } from '../middewares/validation.js';
-import { candidatureSchema } from '../middewares/candidaturevalidation.js';
+import { candidatureSchema, candidatureStatutSchema } from '../middewares/candidaturevalidation.js';
 import upload from '../middewares/upload.js';
 
 const router = express.Router();
@@ -23,7 +23,7 @@ router.get('/', authenticate, getAllCandidatures);
 router.get('/:id', authenticate, getCandidatureById);
 
 // PATCH /api/candidatures/:id/statut (admin)
-router.patch('/:id/statut', authenticate, updateStatutCandidature);
+router.patch('/:id/statut', authenticate, validateData(candidatureStatutSchema), updateStatutCandidature);
 
 // DELETE /api/candidatures/:id (admin)
 router.delete('/:id', authenticate, deleteCandidature);

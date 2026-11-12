@@ -31,6 +31,12 @@ const Candidature = sequelize.define('Candidature', {
         type: DataTypes.ENUM('en attente', 'acceptée', 'refusée'),
         defaultValue: 'en attente',
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    indexes: [
+        { fields: ['statut'] },
+        { fields: ['createdAt'] },
+    ],
+});
 
 export default Candidature;

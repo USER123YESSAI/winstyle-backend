@@ -35,6 +35,12 @@ if (dialect === 'sqlite') {
       port:    Number(process.env.DB_PORT) || 3306,
       dialect,
       logging,
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000,
+      },
       ...(dbSslEnabled && {
         dialectOptions: {
           ssl: {

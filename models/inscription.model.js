@@ -19,6 +19,16 @@ const Inscription = sequelize.define('Inscription', {
         type: DataTypes.STRING,
         allowNull: false,
     },
-}, { timestamps: true });
+    formationId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+    },
+}, {
+    timestamps: true,
+    indexes: [
+        { fields: ['formationId'] },
+        { fields: ['email', 'formationId'], unique: true },
+    ],
+});
 
 export default Inscription;

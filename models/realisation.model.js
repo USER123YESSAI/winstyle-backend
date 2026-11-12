@@ -31,6 +31,12 @@ images: {
         allowNull: true,
         defaultValue: '[]',
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    indexes: [
+        { fields: ['categorie'] },
+        { fields: ['createdAt'] },
+    ],
+});
 
 export default Realisation;

@@ -1,5 +1,6 @@
 import { Realisation } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
+import { deleteUploadedFile } from '../middewares/upload.js';
 
 // Safe JSON parse helper
 const parseImagesSafe = (imagesStr) => {
@@ -14,14 +15,14 @@ const parseImagesSafe = (imagesStr) => {
 
 export const getAllRealisations = async (req, res) => {
     try {
-        const realisations = await Realisation.findAll({ order: [['date', 'DESC']] });
+        const realisations = await Realisation.findAll({ order: [['createdAt', 'DESC'], ['id', 'DESC']] });
         const parsed = realisations.map(r => ({
             ...r.toJSON(),
             images: parseImagesSafe(r.images)
         }));
         return res.status(200).json(parsed);
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
@@ -34,16 +35,19 @@ export const getRealisationById = async (req, res) => {
             images: parseImagesSafe(realisation.images)
         });
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
 export const createRealisation = async (req, res) => {
     try {
-        const data = { ...req.body };
+        const { titre, date, categorie, description, image } = req.body;
+        const data = { titre, date, categorie: categorie || null, description };
         
-        if (req.files && Array.isArray(req.files)) {
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
             data.images = JSON.stringify(req.files.map(file => file.filename));
+        } else if (image) {
+            data.images = JSON.stringify([image]);
         }
         
         const realisation = await Realisation.create(data);
@@ -65,9 +69,15 @@ export const updateRealisation = async (req, res) => {
         const realisation = await Realisation.findByPk(req.params.id);
         if (!realisation) return res.status(404).json({ message: 'Réalisation introuvable' });
         
-        const data = { ...req.body };
+        const { titre, date, categorie, description } = req.body;
+        const data = {
+            ...(titre !== undefined && { titre }),
+            ...(date !== undefined && { date }),
+            ...(categorie !== undefined && { categorie: categorie || null }),
+            ...(description !== undefined && { description }),
+        };
         
-        if (req.files && Array.isArray(req.files)) {
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
             const currentImages = parseImagesSafe(realisation.images);
             const newImages = req.files.map(file => file.filename);
             data.images = JSON.stringify([...currentImages, ...newImages]);
@@ -91,10 +101,16 @@ export const deleteRealisation = async (req, res) => {
     try {
         const realisation = await Realisation.findByPk(req.params.id);
         if (!realisation) return res.status(404).json({ message: 'Réalisation introuvable' });
+        const imagesToDelete = parseImagesSafe(realisation.images);
         await logActivity(req.user, 'Réalisation supprimée', `Réalisation #${realisation.id} — ${realisation.titre}`, req);
         await realisation.destroy();
+        for (const img of imagesToDelete) {
+            if (!img.startsWith('/images/')) {
+                await deleteUploadedFile(img);
+            }
+        }
         return res.status(200).json({ message: 'Réalisation supprimée' });
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur suppression', error: error.message });
+        return res.status(500).json({ message: 'Erreur suppression' });
     }
 };

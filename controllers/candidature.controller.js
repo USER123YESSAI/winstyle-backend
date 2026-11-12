@@ -1,12 +1,15 @@
 import { Candidature } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
+import { deleteUploadedFile } from '../middewares/upload.js';
 
 export const createCandidature = async (req, res) => {
     try {
+        const { nom, email, telephone, poste } = req.body;
         const cv_url = req.file ? `/uploads/${req.file.filename}` : null;
-        const candidature = await Candidature.create({ ...req.body, cv_url });
+        const candidature = await Candidature.create({ nom, email, telephone, poste, cv_url });
         return res.status(201).json({ message: 'Candidature envoyée', candidature });
     } catch (error) {
+        if (req.file) await deleteUploadedFile(req.file.filename);
         return res.status(400).json({ message: 'Erreur candidature', error: error.message });
     }
 };
@@ -16,7 +19,7 @@ export const getAllCandidatures = async (req, res) => {
         const candidatures = await Candidature.findAll({ order: [['createdAt', 'DESC']] });
         return res.status(200).json(candidatures);
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
@@ -26,7 +29,7 @@ export const getCandidatureById = async (req, res) => {
         if (!candidature) return res.status(404).json({ message: 'Candidature introuvable' });
         return res.status(200).json(candidature);
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 
@@ -56,6 +59,8 @@ export const deleteCandidature = async (req, res) => {
         const candidature = await Candidature.findByPk(req.params.id);
         if (!candidature) return res.status(404).json({ message: 'Candidature introuvable' });
 
+        const cvUrl = candidature.cv_url;
+
         await logActivity(
             req.user,
             'Candidature supprimée',
@@ -64,8 +69,9 @@ export const deleteCandidature = async (req, res) => {
         );
 
         await candidature.destroy();
+        if (cvUrl) await deleteUploadedFile(cvUrl);
         return res.status(200).json({ message: 'Candidature supprimée' });
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur suppression', error: error.message });
+        return res.status(500).json({ message: 'Erreur suppression' });
     }
 };

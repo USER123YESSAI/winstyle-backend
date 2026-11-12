@@ -9,7 +9,7 @@ const ActivityLog = sequelize.define('ActivityLog', {
     },
     adminId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
     },
     adminNom: {
         type: DataTypes.STRING,
@@ -31,6 +31,13 @@ const ActivityLog = sequelize.define('ActivityLog', {
         type: DataTypes.STRING,
         allowNull: true,
     },
-}, { timestamps: true, updatedAt: false });
+}, {
+    timestamps: true,
+    updatedAt: false,
+    indexes: [
+        { fields: ['createdAt'] },
+        { fields: ['adminId'] },
+    ],
+});
 
 export default ActivityLog;

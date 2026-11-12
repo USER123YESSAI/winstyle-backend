@@ -10,7 +10,9 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     try {
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
-        const user = await User.findByPk(decoded.id);
+        const user = await User.findByPk(decoded.id, {
+            attributes: { exclude: ['password'] },
+        });
         if (!user) return res.status(401).json({ message: 'Utilisateur introuvable' });
         req.user = user;
         next();

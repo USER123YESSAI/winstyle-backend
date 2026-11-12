@@ -6,5 +6,5 @@ export const serviceRequestSchema = Joi.object({
     telephone: Joi.string().min(8).required(),
     service: Joi.string().required(),
     message: Joi.string().optional().allow(''),
-    date_evenement: Joi.date().optional().allow(null),
+    date_evenement: Joi.date().optional().allow(null, ''),
 });

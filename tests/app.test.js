@@ -61,7 +61,7 @@ describe("Win's Agency backend", () => {
         authToken = response.body.token;
     });
 
-    it('GET /api/auth/me returns authenticated user data', async () => {
+    it('GET /api/auth/me returns authenticated user data without password hash', async () => {
         const response = await request(app)
             .get('/api/auth/me')
             .set('Authorization', `Bearer ${authToken}`);
@@ -69,6 +69,7 @@ describe("Win's Agency backend", () => {
         assert.strictEqual(response.status, 200);
         assert.strictEqual(response.body.user.email, superadminCredentials.email);
         assert.strictEqual(response.body.user.role, 'superadmin');
+        assert.strictEqual(response.body.user.password, undefined);
     });
 
     it('POST /api/formations creates a new formation', async () => {

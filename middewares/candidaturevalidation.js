@@ -6,3 +6,7 @@ export const candidatureSchema = Joi.object({
     telephone: Joi.string().min(8).required(),
     poste: Joi.string().min(2).required(),
 });
+
+export const candidatureStatutSchema = Joi.object({
+    statut: Joi.string().valid('en attente', 'acceptée', 'refusée').required(),
+});

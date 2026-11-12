@@ -9,9 +9,10 @@ import { ActivityLog } from '../models/index.js';
  */
 export const logActivity = async (user, action, cible = null, req = null) => {
     try {
-        const ip = req
-            ? (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '—')
+        const rawIp = req
+            ? (req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || '—')
             : '—';
+        const ip = String(rawIp).slice(0, 64);
 
         await ActivityLog.create({
             adminId:    user.id,

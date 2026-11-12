@@ -20,10 +20,10 @@ router.get('/', getAllRealisations);
 router.get('/:id', getRealisationById);
 
 // POST /api/realisations (admin) - with multiple image uploads
-router.post('/', authenticate, uploadMultiple, createRealisation);
+router.post('/', authenticate, uploadMultiple, validateData(realisationSchema), createRealisation);
 
 // PUT /api/realisations/:id (admin) - with multiple image uploads
-router.put('/:id', authenticate, uploadMultiple, updateRealisation);
+router.put('/:id', authenticate, uploadMultiple, validateData(realisationSchema), updateRealisation);
 
 // DELETE /api/realisations/:id (admin)
 router.delete('/:id', authenticate, deleteRealisation);

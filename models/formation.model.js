@@ -32,6 +32,11 @@ const Formation = sequelize.define('Formation', {
         allowNull: false,
         defaultValue: 20,
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    indexes: [
+        { fields: ['date'] },
+    ],
+});
 
 export default Formation;

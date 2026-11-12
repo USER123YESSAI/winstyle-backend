@@ -20,18 +20,11 @@ export const login = async (req, res) => {
         );
 
         // Log connexion
-        await ActivityLog.create({
-            adminId:    user.id,
-            adminNom:   user.nom || 'Admin',
-            adminEmail: user.email,
-            action:     'Connexion au dashboard',
-            cible:      null,
-            ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '—',
-        });
+        await logActivity(user, 'Connexion au dashboard', null, req);
 
         return res.status(200).json({ message: 'Connexion réussie', token, role: user.role });
     } catch (error) {
-        return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+        return res.status(500).json({ message: 'Erreur serveur' });
     }
 };
 

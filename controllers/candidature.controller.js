@@ -1,16 +1,19 @@
 import { Candidature } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile, persistUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, uploadFileToStorage } from '../middewares/upload.js';
 
 export const createCandidature = async (req, res) => {
+    let uploadedUrl = null;
     try {
-        if (req.file) await persistUploadedFile(req.file);
+        if (req.file) {
+            uploadedUrl = await uploadFileToStorage(req.file, 'wins-agency/cv');
+        }
         const { nom, email, telephone, poste } = req.body;
-        const cv_url = req.file ? `/uploads/${req.file.filename}` : null;
+        const cv_url = uploadedUrl;
         const candidature = await Candidature.create({ nom, email, telephone, poste, cv_url });
         return res.status(201).json({ message: 'Candidature envoyée', candidature });
     } catch (error) {
-        if (req.file) await deleteUploadedFile(req.file.filename);
+        if (uploadedUrl || req.file) await deleteUploadedFile(uploadedUrl || req.file.filename);
         return res.status(400).json({ message: 'Erreur candidature', error: error.message });
     }
 };

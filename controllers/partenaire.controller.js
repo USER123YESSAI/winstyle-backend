@@ -1,6 +1,6 @@
 import { sequelize, Partenaire } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile, persistUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, uploadFileToStorage } from '../middewares/upload.js';
 
 let tableSynced = false;
 const ensurePartenaireTable = async () => {
@@ -48,12 +48,15 @@ export const getAllPartenairesAdmin = async (req, res) => {
 
 // POST /api/partenaires (admin)
 export const createPartenaire = async (req, res) => {
+    let uploadedUrl = null;
     try {
         await ensurePartenaireTable();
-        if (req.file) await persistUploadedFile(req.file);
+        if (req.file) {
+            uploadedUrl = await uploadFileToStorage(req.file, 'wins-agency/partenaires');
+        }
 
         const { nom, site_web, actif, ordre, logo: bodyLogo } = req.body;
-        const logo = req.file ? `/uploads/${req.file.filename}` : (bodyLogo || null);
+        const logo = uploadedUrl || bodyLogo || null;
 
         let targetOrdre = ordre !== undefined && ordre !== '' ? Number(ordre) : null;
         if (targetOrdre === null || Number.isNaN(targetOrdre)) {
@@ -72,13 +75,14 @@ export const createPartenaire = async (req, res) => {
         await logActivity(req.user, 'Partenaire créé', `Partenaire #${partenaire.id} — ${partenaire.nom}`, req);
         return res.status(201).json({ message: 'Partenaire ajouté avec succès', partenaire });
     } catch (error) {
-        if (req.file) await deleteUploadedFile(req.file.filename);
+        if (uploadedUrl || req.file) await deleteUploadedFile(uploadedUrl || req.file.filename);
         return res.status(400).json({ message: 'Erreur lors de la création du partenaire', error: error.message });
     }
 };
 
 // PUT /api/partenaires/:id (admin)
 export const updatePartenaire = async (req, res) => {
+    let uploadedUrl = null;
     try {
         await ensurePartenaireTable();
         const partenaire = await Partenaire.findByPk(req.params.id);
@@ -87,14 +91,16 @@ export const updatePartenaire = async (req, res) => {
             return res.status(404).json({ message: 'Partenaire introuvable' });
         }
 
-        if (req.file) await persistUploadedFile(req.file);
+        if (req.file) {
+            uploadedUrl = await uploadFileToStorage(req.file, 'wins-agency/partenaires');
+        }
 
         const { nom, site_web, actif, ordre, logo: bodyLogo } = req.body;
         const oldLogo = partenaire.logo;
 
         let newLogo = oldLogo;
-        if (req.file) {
-            newLogo = `/uploads/${req.file.filename}`;
+        if (uploadedUrl) {
+            newLogo = uploadedUrl;
         } else if (bodyLogo !== undefined && bodyLogo !== '') {
             newLogo = bodyLogo;
         }
@@ -107,14 +113,14 @@ export const updatePartenaire = async (req, res) => {
             logo: newLogo,
         });
 
-        if (req.file && oldLogo && oldLogo.startsWith('/uploads/')) {
+        if (uploadedUrl && oldLogo && (oldLogo.startsWith('/uploads/') || oldLogo.includes('res.cloudinary.com'))) {
             await deleteUploadedFile(oldLogo);
         }
 
         await logActivity(req.user, 'Partenaire modifié', `Partenaire #${partenaire.id} — ${partenaire.nom}`, req);
         return res.status(200).json({ message: 'Partenaire mis à jour', partenaire });
     } catch (error) {
-        if (req.file) await deleteUploadedFile(req.file.filename);
+        if (uploadedUrl || req.file) await deleteUploadedFile(uploadedUrl || req.file.filename);
         return res.status(400).json({ message: 'Erreur lors de la mise à jour', error: error.message });
     }
 };
@@ -178,7 +184,7 @@ export const deletePartenaire = async (req, res) => {
         await logActivity(req.user, 'Partenaire supprimé', `Partenaire #${partenaire.id} — ${partenaire.nom}`, req);
         await partenaire.destroy();
 
-        if (logoToDelete && logoToDelete.startsWith('/uploads/')) {
+        if (logoToDelete && (logoToDelete.startsWith('/uploads/') || logoToDelete.includes('res.cloudinary.com'))) {
             await deleteUploadedFile(logoToDelete);
         }
 

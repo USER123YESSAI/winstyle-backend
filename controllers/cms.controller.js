@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import CmsSection from '../models/cms_section.model.js';
 import { DEFAULT_CMS_SECTIONS } from '../config/cmsDefaults.js';
 import { logActivity } from '../middewares/logger.js';
-import { persistUploadedFile } from '../middewares/upload.js';
+import { uploadFileToStorage } from '../middewares/upload.js';
 
 let seededOnce = false;
 let tableSynced = false;
@@ -278,8 +278,7 @@ export const uploadCmsMedia = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ message: 'Aucun fichier image fourni.' });
         }
-        await persistUploadedFile(req.file);
-        const url = `/uploads/${req.file.filename}`;
+        const url = await uploadFileToStorage(req.file, 'wins-agency/cms');
 
         await logActivity(req.user, 'Média CMS téléversé', url, req);
 

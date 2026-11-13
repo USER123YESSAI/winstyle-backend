@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { v2 as cloudinary } from 'cloudinary';
 import MediaFile from '../models/media_file.model.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,21 @@ try {
 } catch (err) {
     console.warn('Avertissement création dossier uploads :', err.message);
 }
+
+export const isCloudinaryConfigured = () => Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+);
+
+const configureCloudinary = () => {
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+        secure: true,
+    });
+};
 
 const ALLOWED_MIME_EXTENSIONS = {
     'application/pdf': ['.pdf'],
@@ -100,8 +116,92 @@ export const persistUploadedFiles = async (files) => {
     }
 };
 
+/**
+ * Téléverse un fichier vers Cloudinary (si configuré) avec optimisation auto,
+ * sinon le persiste en base + disque local et retourne `/uploads/<filename>`.
+ */
+export const uploadFileToStorage = async (file, folder = 'wins-agency') => {
+    if (!file) return null;
+
+    if (isCloudinaryConfigured()) {
+        configureCloudinary();
+        const filePath = file.path || path.join(uploadDir, file.filename);
+        const isPdf = file.mimetype === 'application/pdf' || file.originalname?.toLowerCase().endsWith('.pdf');
+        const isSvg = file.mimetype === 'image/svg+xml' || file.originalname?.toLowerCase().endsWith('.svg');
+
+        const result = await cloudinary.uploader.upload(filePath, {
+            folder,
+            resource_type: isPdf ? 'raw' : 'image',
+            use_filename: false,
+            unique_filename: true,
+        });
+
+        // Nettoyer le fichier temporaire sur le disque local
+        try {
+            if (fs.existsSync(filePath)) {
+                await fs.promises.unlink(filePath);
+            }
+        } catch {}
+
+        // Optimisation automatique (WebP/AVIF + qualité auto) pour les images raster
+        if (!isPdf && !isSvg && result.secure_url.includes('/upload/')) {
+            return result.secure_url.replace('/upload/', '/upload/f_auto,q_auto/');
+        }
+        return result.secure_url;
+    }
+
+    await persistUploadedFile(file);
+    return `/uploads/${file.filename}`;
+};
+
+export const uploadFilesToStorage = async (files, folder = 'wins-agency') => {
+    if (!Array.isArray(files) || files.length === 0) return [];
+    const urls = [];
+    for (const file of files) {
+        const url = await uploadFileToStorage(file, folder);
+        if (url) urls.push(url);
+    }
+    return urls;
+};
+
+const extractCloudinaryPublicId = (url) => {
+    try {
+        const cleanUrl = url.split('?')[0];
+        const parts = cleanUrl.split('/upload/');
+        if (parts.length < 2) return null;
+        const segments = parts[1].split('/').filter(Boolean);
+        // Retirer les segments de transformation (ex: f_auto,q_auto) et de version (ex: v123456)
+        const filtered = segments.filter((seg, idx) => {
+            if (idx === 0 && seg.includes(',')) return false;
+            if (/^v\d+$/.test(seg)) return false;
+            return true;
+        });
+        const joined = filtered.join('/');
+        return joined.replace(/\.[^/.]+$/, '');
+    } catch {
+        return null;
+    }
+};
+
 export const deleteUploadedFile = async (fileUrlOrName) => {
     if (!fileUrlOrName) return;
+
+    if (fileUrlOrName.includes('res.cloudinary.com') && isCloudinaryConfigured()) {
+        try {
+            configureCloudinary();
+            const publicId = extractCloudinaryPublicId(fileUrlOrName);
+            if (publicId) {
+                const isRaw = fileUrlOrName.includes('/raw/upload/') || fileUrlOrName.toLowerCase().endsWith('.pdf');
+                await cloudinary.uploader.destroy(publicId, {
+                    resource_type: isRaw ? 'raw' : 'image',
+                });
+            }
+        } catch (err) {
+            console.warn('Avertissement suppression Cloudinary :', err.message);
+        }
+        return;
+    }
+
     const filename = path.basename(fileUrlOrName);
     try {
         const fullPath = path.join(uploadDir, filename);

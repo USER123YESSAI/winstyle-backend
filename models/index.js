@@ -10,6 +10,7 @@ import Realisation from './realisation.model.js';
 import Partenaire from './partenaire.model.js';
 import Temoignage from './temoignage.model.js';
 import CmsSection from './cms_section.model.js';
+import MediaFile from './media_file.model.js';
 
 // Associations
 Formation.hasMany(Inscription, { foreignKey: 'formationId', onDelete: 'CASCADE' });
@@ -32,4 +33,5 @@ export {
     Partenaire,
     Temoignage,
     CmsSection,
+    MediaFile,
 };

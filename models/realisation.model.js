@@ -7,7 +7,7 @@ const Realisation = sequelize.define('Realisation', {
         primaryKey: true,
         autoIncrement: true,
     },
-titre: {
+    titre: {
         type: DataTypes.STRING,
         allowNull: true,
     },
@@ -18,25 +18,18 @@ titre: {
     categorie: {
         type: DataTypes.STRING,
         allowNull: true,
-        validate: {
-            isIn: [['Agence', 'Mode', 'RASMA', 'Formation']],
-        },
     },
     description: {
         type: DataTypes.TEXT,
         allowNull: true,
     },
-images: {
+    images: {
         type: DataTypes.TEXT,
         allowNull: true,
         defaultValue: '[]',
     },
 }, {
     timestamps: true,
-    indexes: [
-        { fields: ['categorie'] },
-        { fields: ['createdAt'] },
-    ],
 });
 
 export default Realisation;

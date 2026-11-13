@@ -1,6 +1,15 @@
 import { sequelize, Temoignage } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, persistUploadedFile } from '../middewares/upload.js';
+
+let tableSynced = false;
+const ensureTemoignageTable = async () => {
+    if (tableSynced) return;
+    try {
+        await Temoignage.sync();
+        tableSynced = true;
+    } catch {}
+};
 
 const parseBool = (val, defaultVal = true) => {
     if (val === undefined || val === null || val === '') return defaultVal;
@@ -13,6 +22,7 @@ const parseBool = (val, defaultVal = true) => {
 // GET /api/temoignages (public — uniquement les témoignages actifs, triés par ordre)
 export const getPublicTemoignages = async (req, res) => {
     try {
+        await ensureTemoignageTable();
         const temoignages = await Temoignage.findAll({
             where: { actif: true },
             order: [['ordre', 'ASC'], ['id', 'ASC']],
@@ -26,6 +36,7 @@ export const getPublicTemoignages = async (req, res) => {
 // GET /api/temoignages/admin (admin — tous les témoignages)
 export const getAllTemoignagesAdmin = async (req, res) => {
     try {
+        await ensureTemoignageTable();
         const temoignages = await Temoignage.findAll({
             order: [['ordre', 'ASC'], ['id', 'ASC']],
         });
@@ -38,6 +49,9 @@ export const getAllTemoignagesAdmin = async (req, res) => {
 // POST /api/temoignages (admin)
 export const createTemoignage = async (req, res) => {
     try {
+        await ensureTemoignageTable();
+        if (req.file) await persistUploadedFile(req.file);
+
         const { nom, fonction, entreprise, texte, note, actif, ordre, photo: bodyPhoto } = req.body;
         const photo = req.file ? `/uploads/${req.file.filename}` : (bodyPhoto || null);
 
@@ -69,11 +83,14 @@ export const createTemoignage = async (req, res) => {
 // PUT /api/temoignages/:id (admin)
 export const updateTemoignage = async (req, res) => {
     try {
+        await ensureTemoignageTable();
         const temoignage = await Temoignage.findByPk(req.params.id);
         if (!temoignage) {
             if (req.file) await deleteUploadedFile(req.file.filename);
             return res.status(404).json({ message: 'Témoignage introuvable' });
         }
+
+        if (req.file) await persistUploadedFile(req.file);
 
         const { nom, fonction, entreprise, texte, note, actif, ordre, photo: bodyPhoto } = req.body;
         const oldPhoto = temoignage.photo;
@@ -111,6 +128,7 @@ export const updateTemoignage = async (req, res) => {
 // PATCH /api/temoignages/:id/toggle (admin — activer/désactiver)
 export const toggleTemoignageActif = async (req, res) => {
     try {
+        await ensureTemoignageTable();
         const temoignage = await Temoignage.findByPk(req.params.id);
         if (!temoignage) return res.status(404).json({ message: 'Témoignage introuvable' });
 
@@ -135,6 +153,7 @@ export const toggleTemoignageActif = async (req, res) => {
 
 // PATCH /api/temoignages/reorder (admin — réorganiser l'ordre d'affichage)
 export const reorderTemoignages = async (req, res) => {
+    await ensureTemoignageTable();
     const t = await sequelize.transaction();
     try {
         const { items } = req.body;
@@ -157,6 +176,7 @@ export const reorderTemoignages = async (req, res) => {
 // DELETE /api/temoignages/:id (admin)
 export const deleteTemoignage = async (req, res) => {
     try {
+        await ensureTemoignageTable();
         const temoignage = await Temoignage.findByPk(req.params.id);
         if (!temoignage) return res.status(404).json({ message: 'Témoignage introuvable' });
 

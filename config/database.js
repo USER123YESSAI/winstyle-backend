@@ -6,8 +6,13 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// En environnement de test ou de production (Render), ne pas écraser les variables avec .env.local
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
+  dotenv.config({ path: path.join(__dirname, '..', '.env') });
+} else if (process.env.NODE_ENV === 'production' && !process.env.DB_HOST) {
+  dotenv.config({ path: path.join(__dirname, '..', '.env') });
+}
 
 const dialect = process.env.DB_DIALECT || 'mysql';
 const logging = false;
@@ -21,8 +26,7 @@ if (dialect === 'sqlite') {
     logging,
   });
 } else {
-  // DB_SSL=true  →  SSL activé (requis pour TiDB Cloud serverless)
-  // DB_SSL=false ou absent  →  pas de SSL (dev local)
+  // DB_SSL=true → SSL activé (requis pour TiDB Cloud serverless)
   const dbSslEnabled =
     process.env.DB_SSL === 'true' || process.env.DB_SSL === '1';
 
@@ -31,8 +35,8 @@ if (dialect === 'sqlite') {
     process.env.DB_USER || 'root',
     process.env.DB_PASSWORD || '',
     {
-      host:    process.env.DB_HOST || 'localhost',
-      port:    Number(process.env.DB_PORT) || 3306,
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT) || 3306,
       dialect,
       logging,
       pool: {
@@ -44,10 +48,7 @@ if (dialect === 'sqlite') {
       ...(dbSslEnabled && {
         dialectOptions: {
           ssl: {
-            // TiDB Cloud serverless utilise un CA reconnu par Node.js (ISRG Root X1).
-            // rejectUnauthorized: true valide le certificat du serveur (plus sûr).
-            // Mets false uniquement si tu obtiens une erreur de certificat.
-            rejectUnauthorized: true,
+            rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' ? false : true,
           },
         },
       }),

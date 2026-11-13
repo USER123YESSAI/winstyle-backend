@@ -1,9 +1,10 @@
 import { Candidature } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, persistUploadedFile } from '../middewares/upload.js';
 
 export const createCandidature = async (req, res) => {
     try {
+        if (req.file) await persistUploadedFile(req.file);
         const { nom, email, telephone, poste } = req.body;
         const cv_url = req.file ? `/uploads/${req.file.filename}` : null;
         const candidature = await Candidature.create({ nom, email, telephone, poste, cv_url });

@@ -34,7 +34,6 @@ const CmsSection = sequelize.define('CmsSection', {
     content: {
         type: DataTypes.JSON,
         allowNull: false,
-        defaultValue: {},
         get() {
             const raw = this.getDataValue('content');
             if (typeof raw === 'string') {
@@ -62,10 +61,6 @@ const CmsSection = sequelize.define('CmsSection', {
     },
 }, {
     timestamps: true,
-    indexes: [
-        { unique: true, fields: ['section_key'] },
-        { fields: ['actif', 'ordre'] },
-    ],
 });
 
 export default CmsSection;

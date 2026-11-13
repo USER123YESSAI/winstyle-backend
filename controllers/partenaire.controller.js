@@ -1,6 +1,15 @@
 import { sequelize, Partenaire } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, persistUploadedFile } from '../middewares/upload.js';
+
+let tableSynced = false;
+const ensurePartenaireTable = async () => {
+    if (tableSynced) return;
+    try {
+        await Partenaire.sync();
+        tableSynced = true;
+    } catch {}
+};
 
 const parseBool = (val, defaultVal = true) => {
     if (val === undefined || val === null || val === '') return defaultVal;
@@ -13,6 +22,7 @@ const parseBool = (val, defaultVal = true) => {
 // GET /api/partenaires (public — uniquement les partenaires actifs, triés par ordre)
 export const getPublicPartenaires = async (req, res) => {
     try {
+        await ensurePartenaireTable();
         const partenaires = await Partenaire.findAll({
             where: { actif: true },
             order: [['ordre', 'ASC'], ['id', 'ASC']],
@@ -26,6 +36,7 @@ export const getPublicPartenaires = async (req, res) => {
 // GET /api/partenaires/admin (admin — tous les partenaires)
 export const getAllPartenairesAdmin = async (req, res) => {
     try {
+        await ensurePartenaireTable();
         const partenaires = await Partenaire.findAll({
             order: [['ordre', 'ASC'], ['id', 'ASC']],
         });
@@ -38,6 +49,9 @@ export const getAllPartenairesAdmin = async (req, res) => {
 // POST /api/partenaires (admin)
 export const createPartenaire = async (req, res) => {
     try {
+        await ensurePartenaireTable();
+        if (req.file) await persistUploadedFile(req.file);
+
         const { nom, site_web, actif, ordre, logo: bodyLogo } = req.body;
         const logo = req.file ? `/uploads/${req.file.filename}` : (bodyLogo || null);
 
@@ -66,11 +80,14 @@ export const createPartenaire = async (req, res) => {
 // PUT /api/partenaires/:id (admin)
 export const updatePartenaire = async (req, res) => {
     try {
+        await ensurePartenaireTable();
         const partenaire = await Partenaire.findByPk(req.params.id);
         if (!partenaire) {
             if (req.file) await deleteUploadedFile(req.file.filename);
             return res.status(404).json({ message: 'Partenaire introuvable' });
         }
+
+        if (req.file) await persistUploadedFile(req.file);
 
         const { nom, site_web, actif, ordre, logo: bodyLogo } = req.body;
         const oldLogo = partenaire.logo;
@@ -105,6 +122,7 @@ export const updatePartenaire = async (req, res) => {
 // PATCH /api/partenaires/:id/toggle (admin — activer/désactiver)
 export const togglePartenaireActif = async (req, res) => {
     try {
+        await ensurePartenaireTable();
         const partenaire = await Partenaire.findByPk(req.params.id);
         if (!partenaire) return res.status(404).json({ message: 'Partenaire introuvable' });
 
@@ -129,6 +147,7 @@ export const togglePartenaireActif = async (req, res) => {
 
 // PATCH /api/partenaires/reorder (admin — réorganiser l'ordre d'affichage)
 export const reorderPartenaires = async (req, res) => {
+    await ensurePartenaireTable();
     const t = await sequelize.transaction();
     try {
         const { items } = req.body;
@@ -151,6 +170,7 @@ export const reorderPartenaires = async (req, res) => {
 // DELETE /api/partenaires/:id (admin)
 export const deletePartenaire = async (req, res) => {
     try {
+        await ensurePartenaireTable();
         const partenaire = await Partenaire.findByPk(req.params.id);
         if (!partenaire) return res.status(404).json({ message: 'Partenaire introuvable' });
 

@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.routes.js';
@@ -17,11 +18,14 @@ import realisationRoutes from './routes/realisation.routes.js';
 import partenaireRoutes from './routes/partenaire.routes.js';
 import temoignageRoutes from './routes/temoignage.routes.js';
 import cmsRoutes from './routes/cms.routes.js';
-
-dotenv.config();
+import MediaFile from './models/media_file.model.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 
@@ -31,29 +35,41 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-app.use(cors({ 
+app.use(cors({
   origin: (origin, callback) => {
-    const allowed = [
-      process.env.CLIENT_URL || 'http://localhost:3000',
-      'http://localhost:3001',
-    ];
-
-    // Sans origin (ex: requêtes serveur-à-serveur)
     if (!origin) return callback(null, true);
 
-    if (allowed.includes(origin)) return callback(null, true);
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const clientUrl = (process.env.CLIENT_URL || '').replace(/\/$/, '');
+
+    const allowed = [
+      clientUrl,
+      'https://winstyle-agency.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:3001',
+    ].filter(Boolean);
+
+    if (
+      allowed.includes(normalizedOrigin) ||
+      /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin)
+    ) {
+      return callback(null, true);
+    }
+
     return callback(new Error(`CORS blocked origin: ${origin}`));
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 if (process.env.NODE_ENV !== 'test') {
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 15,
+    max: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
@@ -62,7 +78,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 150,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Trop de requêtes depuis cette adresse IP. Réessayez plus tard.' },
@@ -70,14 +86,39 @@ if (process.env.NODE_ENV !== 'test') {
   app.use('/api', apiLimiter);
 }
 
+const uploadsDirectory = path.join(__dirname, 'uploads');
+
 app.use('/uploads', (req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
-}, express.static(path.join(__dirname, 'uploads')));
+}, express.static(uploadsDirectory));
+
+// Fallback base de données si le disque éphémère Render a été réinitialisé
+app.get('/uploads/:filename', async (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const media = await MediaFile.findOne({ where: { filename } });
+    if (!media || !media.data) {
+      return res.status(404).json({ message: 'Fichier introuvable' });
+    }
+    const buffer = Buffer.from(media.data, 'base64');
+    try {
+      if (!fs.existsSync(uploadsDirectory)) {
+        fs.mkdirSync(uploadsDirectory, { recursive: true });
+      }
+      await fs.promises.writeFile(path.join(uploadsDirectory, filename), buffer);
+    } catch {}
+    res.setHeader('Content-Type', media.mimetype || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    return res.send(buffer);
+  } catch (err) {
+    return res.status(404).json({ message: 'Fichier introuvable' });
+  }
+});
 
 app.get('/', (req, res) => {
-    return res.status(200).json({ message: "Win's Agency API - Bienvenue !" });
+  return res.status(200).json({ message: "Win's Agency API - Bienvenue !" });
 });
 
 app.use('/api/auth', authRoutes);
@@ -95,7 +136,7 @@ app.use('/api/cms', cmsRoutes);
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'Le fichier dépasse la taille maximale autorisée (5 Mo).' });
+      return res.status(400).json({ message: 'Le fichier dépasse la taille maximale autorisée (8 Mo).' });
     }
     return res.status(400).json({ message: `Erreur d'upload : ${err.message}` });
   }
@@ -106,7 +147,7 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ message: err.message });
   }
   console.error('Erreur non gérée :', err);
-  return res.status(500).json({ message: 'Erreur interne du serveur' });
+  return res.status(500).json({ message: 'Erreur interne du serveur', error: err?.message });
 });
 
 export default app;

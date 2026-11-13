@@ -33,10 +33,6 @@ const Candidature = sequelize.define('Candidature', {
     },
 }, {
     timestamps: true,
-    indexes: [
-        { fields: ['statut'] },
-        { fields: ['createdAt'] },
-    ],
 });
 
 export default Candidature;

@@ -1,7 +1,21 @@
 import app from './app.js';
 import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
-import { sequelize, User, Partenaire, Temoignage, CmsSection } from './models/index.js';
+import {
+  sequelize,
+  User,
+  Formation,
+  Inscription,
+  Candidature,
+  ServiceRequest,
+  Contact,
+  ActivityLog,
+  Realisation,
+  Partenaire,
+  Temoignage,
+  CmsSection,
+  MediaFile,
+} from './models/index.js';
 import { ensureCmsDefaultsSeeded } from './controllers/cms.controller.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -9,16 +23,18 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, '.env') });
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.join(__dirname, '.env') });
+}
 
 const shouldSync = process.env.DB_SYNC === 'true';
 
 // ── Création du superadmin au démarrage ──────────────────────────────────────
 async function createSuperAdmin() {
   try {
-    const email    = process.env.SUPERADMIN_EMAIL    || 'admin@winstyle.com';
-    const password = process.env.SUPERADMIN_PASSWORD;
-    const nom      = process.env.SUPERADMIN_NOM      || 'Super Admin';
+    const email = process.env.SUPERADMIN_EMAIL || 'admin@winstyle.com';
+    const password = process.env.SUPERADMIN_PASSWORD || 'Admin@@2025!';
+    const nom = process.env.SUPERADMIN_NOM || 'Super Admin';
 
     const existing = await User.findOne({ where: { email } });
     if (existing) {
@@ -26,27 +42,66 @@ async function createSuperAdmin() {
       return;
     }
 
-    if (!password) {
-      console.warn('SUPERADMIN_PASSWORD non défini dans les variables d\'environnement : création auto du superadmin ignorée.');
-      return;
-    }
-
     const hash = await bcrypt.hash(password, 10);
     await User.create({ nom, email, password: hash, role: 'superadmin' });
-    console.log(`✅ Superadmin créé : ${email}`);
+    console.log(`Superadmin créé : ${email}`);
   } catch (err) {
     console.error('Erreur création superadmin :', err?.message || err);
   }
 }
 
-// ── Initialisation par défaut des Partenaires et Témoignages (si vides) ──────
-async function seedDefaultPartenairesAndTemoignages() {
-  try {
-    await Partenaire.sync();
-    await Temoignage.sync();
-    await CmsSection.sync();
-    await ensureCmsDefaultsSeeded();
+// ── Synchronisation tolérante des nouvelles tables et données par défaut ─────
+async function syncAndSeedDatabase() {
+  const modelsToEnsure = [
+    User,
+    Formation,
+    Inscription,
+    Candidature,
+    ServiceRequest,
+    Contact,
+    ActivityLog,
+    Realisation,
+    Partenaire,
+    Temoignage,
+    CmsSection,
+    MediaFile,
+  ];
 
+  if (shouldSync) {
+    console.log('DB_SYNC=true -> synchronisation des tables...');
+    for (const model of modelsToEnsure) {
+      try {
+        await model.sync({ alter: false, force: false });
+      } catch (e) {
+        console.warn(`Avertissement sync table ${model.name} :`, e?.message || e);
+      }
+    }
+  } else {
+    try {
+      await sequelize.authenticate();
+      console.log('Authentification base de données OK (sequelize.authenticate).');
+    } catch (e) {
+      console.error('DB indisponible (serveur démarré quand même) :', e?.message || e);
+    }
+    // Toujours créer les nouvelles tables CMS / Partenaires / Témoignages / MediaFile si absentes
+    for (const model of [Partenaire, Temoignage, CmsSection, MediaFile]) {
+      try {
+        await model.sync({ alter: false, force: false });
+      } catch (e) {
+        console.warn(`Avertissement création table ${model.name} :`, e?.message || e);
+      }
+    }
+  }
+
+  await createSuperAdmin();
+
+  try {
+    await ensureCmsDefaultsSeeded();
+  } catch (err) {
+    console.error('Erreur initialisation CMS :', err?.message || err);
+  }
+
+  try {
     const partenairesCount = await Partenaire.count();
     if (partenairesCount === 0) {
       await Partenaire.bulkCreate([
@@ -58,9 +113,13 @@ async function seedDefaultPartenairesAndTemoignages() {
         { nom: 'Partenaire 7', logo: '/images/partenaires/partenaire7.png', site_web: null, actif: true, ordre: 6 },
         { nom: 'Partenaire 8', logo: '/images/partenaires/partenaire8.png', site_web: null, actif: true, ordre: 7 },
       ]);
-      console.log('✅ Partenaires par défaut initialisés.');
+      console.log('Partenaires par défaut initialisés.');
     }
+  } catch (err) {
+    console.error('Erreur initialisation partenaires :', err?.message || err);
+  }
 
+  try {
     const temoignagesCount = await Temoignage.count();
     if (temoignagesCount === 0) {
       await Temoignage.bulkCreate([
@@ -95,13 +154,12 @@ async function seedDefaultPartenairesAndTemoignages() {
           ordre: 3,
         },
       ]);
-      console.log('✅ Témoignages par défaut initialisés.');
+      console.log('Témoignages par défaut initialisés.');
     }
   } catch (err) {
-    console.error('Erreur initialisation partenaires / témoignages :', err?.message || err);
+    console.error('Erreur initialisation témoignages :', err?.message || err);
   }
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
 let serverInstance;
 
@@ -132,33 +190,10 @@ const shutdown = async (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-(async () => {
-  try {
-    if (shouldSync) {
-      console.log('DB_SYNC=true -> sequelize.sync');
-      try {
-        await sequelize.sync({ alter: false, force: false });
-        console.log('Base de données synchronisée (sequelize.sync).');
-      } catch (e) {
-        if (e?.original?.code !== 'ER_TABLESPACE_EXISTS') throw e;
-        console.warn('ER_TABLESPACE_EXISTS détecté : sequelize.sync ignoré (API démarrée).');
-      }
-    } else {
-      console.log("sequelize.sync désactivé au démarrage (met DB_SYNC=true pour l'activer).");
-      try {
-        await sequelize.authenticate();
-        console.log('Authentification base de données OK (sequelize.authenticate).');
-      } catch (e) {
-        console.error('DB indisponible (serveur démarré quand même) :', e?.message || e);
-      }
-    }
+// Démarrer le serveur HTTP immédiatement pour que Render valide le port sans délai
+startServer();
 
-    await createSuperAdmin();
-    await seedDefaultPartenairesAndTemoignages();
-
-    console.log('Connexion base de données OK (ou DB indisponible, serveur démarré).');
-    startServer();
-  } catch (err) {
-    console.error('Erreur de connexion / synchronisation à la base de données :', err);
-  }
-})();
+// Puis synchroniser et initialiser la base de données en arrière-plan
+syncAndSeedDatabase().catch((err) => {
+  console.error('Erreur lors de l’initialisation base de données :', err?.message || err);
+});

@@ -44,9 +44,6 @@ const Temoignage = sequelize.define('Temoignage', {
     },
 }, {
     timestamps: true,
-    indexes: [
-        { fields: ['actif', 'ordre'] },
-    ],
 });
 
 export default Temoignage;

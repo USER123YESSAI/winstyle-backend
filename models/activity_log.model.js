@@ -25,7 +25,7 @@ const ActivityLog = sequelize.define('ActivityLog', {
     },
     cible: {
         type: DataTypes.STRING,
-        allowNull: true, 
+        allowNull: true,
     },
     ip: {
         type: DataTypes.STRING,
@@ -34,10 +34,6 @@ const ActivityLog = sequelize.define('ActivityLog', {
 }, {
     timestamps: true,
     updatedAt: false,
-    indexes: [
-        { fields: ['createdAt'] },
-        { fields: ['adminId'] },
-    ],
 });
 
 export default ActivityLog;

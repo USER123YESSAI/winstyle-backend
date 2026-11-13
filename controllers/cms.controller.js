@@ -2,17 +2,27 @@ import jwt from 'jsonwebtoken';
 import CmsSection from '../models/cms_section.model.js';
 import { DEFAULT_CMS_SECTIONS } from '../config/cmsDefaults.js';
 import { logActivity } from '../middewares/logger.js';
+import { persistUploadedFile } from '../middewares/upload.js';
 
 let seededOnce = false;
+let tableSynced = false;
 
 export const ensureCmsDefaultsSeeded = async () => {
     try {
+        if (!tableSynced) {
+            await CmsSection.sync();
+            tableSynced = true;
+        }
         const existing = await CmsSection.findAll({ attributes: ['section_key'] });
         const existingKeys = new Set(existing.map((r) => r.section_key));
 
         const missing = DEFAULT_CMS_SECTIONS.filter((s) => !existingKeys.has(s.section_key));
         if (missing.length > 0) {
-            await CmsSection.bulkCreate(missing);
+            for (const item of missing) {
+                try {
+                    await CmsSection.create(item);
+                } catch {}
+            }
         }
         seededOnce = true;
     } catch (error) {
@@ -43,7 +53,6 @@ export const getPublicCms = async (req, res) => {
             order: [['ordre', 'ASC'], ['id', 'ASC']],
         });
 
-        // Si la table a été vidée entre-temps
         if (rows.length === 0) {
             await ensureCmsDefaultsSeeded();
         }
@@ -165,6 +174,7 @@ export const updateCmsSection = async (req, res) => {
 // ── Admin : publier le brouillon d'une section ──
 export const publishCmsSection = async (req, res) => {
     try {
+        await ensureCmsDefaultsSeeded();
         const { key } = req.params;
         const section = await CmsSection.findOne({ where: { section_key: key } });
         if (!section) {
@@ -201,6 +211,7 @@ export const publishCmsSection = async (req, res) => {
 // ── Admin : abandonner le brouillon d'une section ──
 export const discardCmsDraft = async (req, res) => {
     try {
+        await ensureCmsDefaultsSeeded();
         const { key } = req.params;
         const section = await CmsSection.findOne({ where: { section_key: key } });
         if (!section) {
@@ -228,6 +239,7 @@ export const discardCmsDraft = async (req, res) => {
 // ── Admin : activer / désactiver une section CMS ──
 export const toggleCmsSection = async (req, res) => {
     try {
+        await ensureCmsDefaultsSeeded();
         const { key } = req.params;
         const section = await CmsSection.findOne({ where: { section_key: key } });
         if (!section) {
@@ -266,6 +278,7 @@ export const uploadCmsMedia = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ message: 'Aucun fichier image fourni.' });
         }
+        await persistUploadedFile(req.file);
         const url = `/uploads/${req.file.filename}`;
 
         await logActivity(req.user, 'Média CMS téléversé', url, req);

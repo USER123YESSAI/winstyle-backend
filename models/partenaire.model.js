@@ -31,9 +31,6 @@ const Partenaire = sequelize.define('Partenaire', {
     },
 }, {
     timestamps: true,
-    indexes: [
-        { fields: ['actif', 'ordre'] },
-    ],
 });
 
 export default Partenaire;

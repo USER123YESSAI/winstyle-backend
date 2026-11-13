@@ -1,7 +1,7 @@
 import Joi from 'joi';
 
 export const cmsUpdateSchema = Joi.object({
-    title: Joi.string().trim().min(2).max(200).optional(),
+    title: Joi.string().trim().min(1).max(200).optional().allow('', null),
     actif: Joi.boolean().optional(),
     ordre: Joi.number().integer().min(0).max(9999).optional(),
     publish: Joi.boolean().optional().default(true),

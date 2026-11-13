@@ -1,6 +1,6 @@
 import { Realisation } from '../models/index.js';
 import { logActivity } from '../middewares/logger.js';
-import { deleteUploadedFile } from '../middewares/upload.js';
+import { deleteUploadedFile, persistUploadedFiles } from '../middewares/upload.js';
 
 // Safe JSON parse helper
 const parseImagesSafe = (imagesStr) => {
@@ -45,6 +45,7 @@ export const createRealisation = async (req, res) => {
         const data = { titre, date, categorie: categorie || null, description };
         
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            await persistUploadedFiles(req.files);
             data.images = JSON.stringify(req.files.map(file => file.filename));
         } else if (image) {
             data.images = JSON.stringify([image]);
@@ -78,6 +79,7 @@ export const updateRealisation = async (req, res) => {
         };
         
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            await persistUploadedFiles(req.files);
             const currentImages = parseImagesSafe(realisation.images);
             const newImages = req.files.map(file => file.filename);
             data.images = JSON.stringify([...currentImages, ...newImages]);
